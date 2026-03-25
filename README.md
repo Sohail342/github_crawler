@@ -82,7 +82,7 @@ Based on the observed performance, we can project the time and resources require
     *   The remaining 3,618 points in the current hour can process an additional ~260,000 repositories, demonstrating that the system is highly efficient and rarely blocked by GitHub's GraphQL limits.
 
 ### Run Evidence
-*   **Job Logs**: [View Run Logs](https://productionresultssa15.blob.core.windows.net/actions-results/25732b58-792a-487c-a047-ff9204d27b67/workflow-job-run-f9ab9d9c-f2ee-57a9-aeef-0d2a0addb296/logs/job/job-logs.txt?rsct=text%2Fplain&se=2026-03-25T03%3A06%3A30Z&sig=h3lKaeiOPUtyUiG05n9%2B%2FqKCHVWFRMvVVgkONjAiXvQ%3D&ske=2026-03-25T05%3A55%3A54Z&skoid=ca7593d4-ee42-46cd-af88-8b886a2f84eb&sks=b&skt=2026-03-25T01%3A55%3A54Z&sktid=398a6654-997b-47e9-b12b-9515b896b4de&skv=2025-11-05&sp=r&spr=https&sr=b&st=2026-03-25T02%3A56%3A25Z&sv=2025-11-05)
+*   **Data Export**: The final dataset is available in `repositories.csv` (compressed as `github-repositories-data.zip`).
 *   **GitHub Actions Artifacts**: [Run #23521480752](https://github.com/Sohail342/github_crawler/actions/runs/23521480752)
 
 ## Setup and Installation
@@ -90,7 +90,7 @@ Based on the observed performance, we can project the time and resources require
 ### Prerequisites
 - Python 3.12+
 - PostgreSQL
-- GitHub Personal Access Token
+- GitHub Personal Access Token (Optional)
 
 ### Local Installation
 ```bash
