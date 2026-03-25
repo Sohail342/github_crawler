@@ -110,8 +110,40 @@ pip install .
    python scripts/crawl.py --count 100000
    ```
 
-### Docker Setup
-To start the FastAPI web service and background workers:
+## Background Tasks & Automation
+
+The system uses **Celery** and **Redis** for distributed task management and daily scheduling. 
+
+*   **Daily Crawl**: Celery Beat is configured to trigger a 100k repository crawl every day at **00:00 UTC**.
+*   **Automated Export**: After every successful crawl (manual or scheduled), the system automatically exports the results to `app/repositories.csv`.
+
+### Running Celery Services
+
+#### **Recommended: Docker (Windows/Linux)**
+Using Docker is highly recommended as it handles all environmental dependencies and networking automatically:
 ```bash
-docker-compose --env-file .env.dev -f docker-compose.dev.yml up --build
+# Build and start all services (FastAPI, Redis, Postgres, Celery Worker, Celery Beat)
+docker-compose --env-file .env.dev -f docker-compose.dev.yml up --build -d
 ```
+
+#### **Manual: Linux Local (Optional)**
+If running on Linux without Docker, you will need a running Redis instance:
+```bash
+# Start Worker
+celery -A app.workers.celery_app worker --loglevel=INFO
+
+# Start Scheduler (Beat)
+celery -A app.workers.celery_app beat --loglevel=INFO
+```
+
+> [!IMPORTANT]
+> **Windows Users**: Celery's `ForkPoolWorker` is not natively supported on Windows. You **must use Docker** or a Linux-based environment (WSL2) to run the background workers and scheduler reliably.
+
+## Setup and Installation
+
+### Prerequisites
+- Python 3.12+
+- PostgreSQL
+- Redis (Required for Celery)
+- GitHub Personal Access Token (Optional)
+- **Docker Home/Desktop** (Recommended for Windows)
