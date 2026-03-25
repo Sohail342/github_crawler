@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
 import httpx
@@ -19,11 +19,11 @@ class GitHubGraphQLClient(GitHubRepository):
         self.headers = {"Authorization": f"Bearer {token}"}
 
     async def fetch_repositories_batch(
-        self, after: Optional[str] = None
+        self, query: str = "is:public", after: Optional[str] = None
     ) -> Tuple[List[Repository], Optional[str], Dict[str, Any]]:
-        query = """
-        query ($cursor: String) {
-          search(query: "is:public", type: REPOSITORY, first: 100, after: $cursor) {
+        query_gql = """
+        query ($query: String!, $cursor: String) {
+          search(query: $query, type: REPOSITORY, first: 100, after: $cursor) {
             pageInfo {
               hasNextPage
               endCursor
@@ -52,7 +52,10 @@ class GitHubGraphQLClient(GitHubRepository):
             try:
                 response = await client.post(
                     self.URL,
-                    json={"query": query, "variables": {"cursor": after}},
+                    json={
+                        "query": query_gql,
+                        "variables": {"query": query, "cursor": after},
+                    },
                     headers=self.headers,
                     timeout=30.0,
                 )
@@ -99,30 +102,57 @@ class GitHubGraphQLClient(GitHubRepository):
 
     async def run_crawl(self, target_count: int = 100000, batch_callback=None):
         count = 0
-        cursor = None
 
-        while count < target_count:
-            repos, cursor, rate_limit = await self.fetch_repositories_batch(cursor)
+        start_date = datetime(2008, 1, 1, tzinfo=timezone.utc)
+        end_date = datetime.now(timezone.utc)
 
-            if batch_callback:
-                await batch_callback(repos)
+        current_start = start_date
+        while count < target_count and current_start < end_date:
+            # Partition by day to ensure < 1000 results per segment
+            next_start = current_start + timedelta(days=1)
+            date_query = f"created:{current_start.date()}"
+            query = f"is:public {date_query}"
 
-            count += len(repos)
-            logger.info(
-                f"Crawled {count} repositories. Rate Limit Remaining: {rate_limit['remaining']}"
-            )
+            logger.info(f"Crawling segment: {query}")
 
-            if not cursor:
-                logger.info("No more pages available.")
-                break
-
-            if rate_limit["remaining"] < 100:
-                reset_at = datetime.fromisoformat(
-                    rate_limit["resetAt"].replace("Z", "+00:00")
+            cursor = None
+            segment_count = 0
+            while segment_count < 1000:
+                repos, cursor, rate_limit = await self.fetch_repositories_batch(
+                    query, cursor
                 )
-                wait_seconds = (
-                    reset_at - datetime.now(reset_at.tzinfo)
-                ).total_seconds()
-                if wait_seconds > 0:
-                    logger.info(f"Rate limit low. Waiting for {wait_seconds} seconds.")
-                    await asyncio.sleep(wait_seconds + 1)
+
+                if not repos:
+                    break
+
+                if batch_callback:
+                    await batch_callback(repos)
+
+                segment_count += len(repos)
+                count += len(repos)
+
+                logger.info(
+                    f"Progress: {count}/{target_count} repos. Rate Limit: {rate_limit['remaining']}"
+                )
+
+                if count >= target_count:
+                    return
+
+                if not cursor:
+                    break
+
+                # Rate limit handling
+                if rate_limit["remaining"] < 100:
+                    reset_at = datetime.fromisoformat(
+                        rate_limit["resetAt"].replace("Z", "+00:00")
+                    )
+                    wait_seconds = (
+                        reset_at - datetime.now(timezone.utc)
+                    ).total_seconds()
+                    if wait_seconds > 0:
+                        logger.info(
+                            f"Rate limit low. Waiting for {wait_seconds:.2f} seconds."
+                        )
+                        await asyncio.sleep(wait_seconds + 1)
+
+            current_start = next_start
